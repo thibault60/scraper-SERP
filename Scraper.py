@@ -3,7 +3,7 @@
 import streamlit as st
 import pandas as pd
 
-# Import SerpAPI avec bascule vers le legacy si nécessaire
+# Import SerpAPI (legacy fallback)
 try:
     from serpapi import GoogleSearch
 except ImportError:
@@ -11,9 +11,6 @@ except ImportError:
 
 @st.cache_data(show_spinner=False)
 def fetch_urls(query: str, api_key: str, location: str = "France", num: int = 50) -> list[str]:
-    """
-    Lance une recherche Google via SerpAPI et renvoie la liste d'URLs organiques.
-    """
     params = {
         "engine": "google",
         "q": query,
@@ -26,41 +23,36 @@ def fetch_urls(query: str, api_key: str, location: str = "France", num: int = 50
     }
     search = GoogleSearch(params)
     data = search.get_dict()
-    organic = data.get("organic_results", [])
-    return [item.get("link") for item in organic if item.get("link")]
+    return [item["link"] for item in data.get("organic_results", []) if item.get("link")]
 
 def main():
     st.set_page_config(page_title="Scraper SEO SerpAPI", layout="wide")
     st.title("🕷️ Scraper d'URLs SEO avec SerpAPI")
-    st.markdown("Entrez votre requête Google (ex. `site:monsite.fr mot-clé`)")
 
-    # 1. Saisie des paramètres
-    query = st.text_input("Requête Google", value="site:exemple.fr")
-    num   = st.slider("Nombre de résultats", min_value=10, max_value=100, step=10, value=50)
-    api_key = st.secrets.get("serpapi_key", "")
+    # Récupération sécurisée de la clé
+    api_key = st.secrets.get("serpapi_key")  # retourne None si la clé n'existe pas
 
     if not api_key:
-        st.warning("Clé SerpAPI introuvable : ajoutez-la dans `.streamlit/secrets.toml` sous `serpapi_key`.")
+        st.error("❌ Clé SerpAPI introuvable. "
+                 "Déclarez `serpapi_key` dans `.streamlit/secrets.toml` "
+                 "ou via l’interface de déploiement.")
+        st.stop()
 
-    # 2. Lancement du scraping
-    if st.button("🚀 Lancer le scraping") and api_key:
+    # Interface
+    query = st.text_input("Requête Google", value="site:exemple.fr")
+    num   = st.slider("Nombre de résultats", 10, 100, 50, 10)
+
+    if st.button("🚀 Lancer le scraping"):
         with st.spinner("Recherche en cours…"):
             urls = fetch_urls(query, api_key, num=num)
         if urls:
             st.success(f"{len(urls)} URLs récupérées.")
             df = pd.DataFrame({"URL": urls})
             st.dataframe(df, use_container_width=True)
-
-            # 3. Téléchargement CSV
             csv = df.to_csv(index=False).encode("utf-8")
-            st.download_button(
-                label="⬇️ Télécharger les URLs au format CSV",
-                data=csv,
-                file_name="urls_scrapées.csv",
-                mime="text/csv"
-            )
+            st.download_button("⬇️ Télécharger CSV", csv, "urls.csv", "text/csv")
         else:
-            st.error("Aucun résultat organique trouvé pour cette requête.")
+            st.warning("Aucun résultat organique trouvé.")
 
 if __name__ == "__main__":
     main()
