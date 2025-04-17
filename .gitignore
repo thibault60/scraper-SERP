@@ -1,0 +1,12 @@
+# Environnements virtuels
+venv/
+
+# Fichiers système
+.DS_Store
+Thumbs.db
+
+# Fichiers de log
+*.log
+
+# Secrets Streamlit
+.streamlit/secrets.toml
