@@ -1,4 +1,3 @@
 streamlit
 serpapi
 pandas
-pip install serpapi
