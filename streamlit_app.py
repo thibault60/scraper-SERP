@@ -5,7 +5,7 @@ import pandas as pd
 try:
     from serpapi import GoogleSearch
 except ImportError:
-    from serpapi.google_search import GoogleSearch
+    from serpapi import GoogleSearch
 
 @st.cache_data(show_spinner=False)
 def fetch_urls(query: str, api_key: str, location: str="France", num: int=50) -> list[str]:
