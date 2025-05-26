@@ -11,7 +11,7 @@ SERPAPI_KEY = st.secrets["serpapi_key"]
 # 2. Connexion GitHub (dépôt public)
 github = Github()  # pas de token
 repo = github.get_repo("votre_user/scraper-SERP")
-contents = repo.get_contents("queries.csv")  # chemin relatif
+contents = repo.get_contents("queries.txt")  # chemin relatif
 
 # 3. Lecture du CSV depuis GitHub
 raw_csv = requests.get(contents.download_url).text
