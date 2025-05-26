@@ -1,55 +1,52 @@
 import streamlit as st
 import pandas as pd
+from io import StringIO
+from github import Github
+from serpapi import GoogleSearch
+import requests
 
-# Import SerpAPI avec fallback legacy
-try:
-    from serpapi import GoogleSearch
-except ImportError:
-    from serpapi import GoogleSearch
+# 1. Clé SerpApi (dans .streamlit/secrets.toml)
+SERPAPI_KEY = st.secrets["serpapi_key"]
 
-@st.cache_data(show_spinner=False)
-def fetch_urls(query: str, api_key: str, location: str="France", num: int=50) -> list[str]:
+# 2. Connexion GitHub (dépôt public)
+github = Github()  # pas de token
+repo = github.get_repo("votre_user/scraper-SERP")
+contents = repo.get_contents("queries.csv")  # chemin relatif
+
+# 3. Lecture du CSV depuis GitHub
+raw_csv = requests.get(contents.download_url).text
+df_queries = pd.read_csv(StringIO(raw_csv))
+
+# 4. Extraction des featured snippets
+def get_featured_snippet(query: str) -> dict:
     params = {
-        "engine": "google",
         "q": query,
-        "location": location,
-        "google_domain": "google.fr",
-        "gl": "fr",
+        "api_key": SERPAPI_KEY,
         "hl": "fr",
-        "num": str(num),
-        "api_key": api_key
+        "gl": "fr",
+        "num": 10,
     }
     search = GoogleSearch(params)
-    data = search.get_dict()
-    return [item["link"] for item in data.get("organic_results", []) if item.get("link")]
+    results = search.get_dict()
+    return results.get("answer_box") or results.get("featured_snippet") or {}
 
-def main():
-    st.set_page_config(page_title="Scraper SEO SerpAPI", layout="wide")
-    st.title("🕷️ Scraper d'URLs SEO avec SerpAPI")
+# 5. Interface Streamlit
+st.title("Extraction des Positions Zéro depuis scraper-SERP")
 
-    api_key = st.secrets.get("serpapi_key")
-    if not api_key:
-        st.error(
-            "❌ Clé SerpAPI introuvable. "
-            "Ajoutez `serpapi_key` dans `.streamlit/secrets.toml` "
-            "ou via l’UI de déploiement."
-        )
-        st.stop()
+if st.button("🕹️ Extraire les featured snippets"):
+    snippets = []
+    for q in df_queries["query"]:
+        fs = get_featured_snippet(q)
+        snippets.append({
+            "Requête": q,
+            "Position zéro": fs.get("snippet") or fs.get("answer") or "—"
+        })
+    df_snippets = pd.DataFrame(snippets)
+    st.dataframe(df_snippets)
 
-    query = st.text_input("Requête Google", value="site:exemple.fr")
-    num   = st.slider("Nombre de résultats", 10, 100, 50, 10)
-
-    if st.button("🚀 Lancer le scraping"):
-        with st.spinner("Recherche en cours…"):
-            urls = fetch_urls(query, api_key, num=num)
-        if urls:
-            st.success(f"{len(urls)} URLs récupérées.")
-            df = pd.DataFrame({"URL": urls})
-            st.dataframe(df, use_container_width=True)
-            csv = df.to_csv(index=False).encode("utf-8")
-            st.download_button("⬇️ Télécharger CSV", csv, "urls.csv", "text/csv")
+    for item in snippets:
+        st.subheader(f"🔍 {item['Requête']}")
+        if item["Position zéro"] != "—":
+            st.markdown(item["Position zéro"])
         else:
-            st.warning("Aucun résultat trouvé.")
-
-if __name__ == "__main__":
-    main()
+            st.info("Pas de featured snippet trouvé pour cette requête.")
